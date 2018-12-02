@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.12)
+project(rendering)
+find_package(OpenCV)
+set(CMAKE_CXX_STANDARD 14)
+include_directories(${OpenCV_INCLUDE_DIRS})
+add_executable(rendering main.cpp spectrum.cpp spectrum.h shape.cpp shape.h core.h primitive.cpp primitive.h scene.cpp scene.h camera.cpp camera.h lightSource.cpp lightSource.h BSDF.cpp BSDF.h)
+target_link_libraries( rendering ${OpenCV_LIBS} )
