@@ -86,53 +86,43 @@ void scene::SPPM() {
 
     rep(i, n) pixels[i].radius = 0.1;//(kdRoot->BB.max[0] - kdRoot->BB.min[0]) / 20;
 
-    int nThread = 1;
-    thread t[nThread];
-    auto batch = (n + nThread - 1) / nThread;
+
     rep(iter, iteration) {
         spectrum beta(1);
-        rep(i, nThread) {
-            t[i] = thread([&, i]() {
-                rep(j, batch)
-                    if (i * batch + j < n) {
-                        if (j % 100 == 0) cout << j << endl;
-                        int index = i * batch + j;
-                        auto r = rays[index];
-                        cout << "l1" << endl;
-                        for (int depth = 0; depth < maxDep; depth++) {
-                            cout << "l2" << endl;
-                            auto isect = intersect(r);
-                            cout << "l3" << endl;
-                            if (isect.isnull) {
-                                for (const auto &light : lights)
-                                    pixels[index].Ld += light->Le(r) * beta;
-                                break;
-                            }
-                            cout << "l4" << endl;
-                            const BSDF &bsdf = *isect.bsdf;
-                            auto wo = -r.dir;
-                            pixels[index].Ld += beta * UniformSampleOneLight(isect);
+        rep(index, n) {
+            auto r = rays[index];
+            cout << "l1" << endl;
+            for (int depth = 0; depth < maxDep; depth++) {
+                cout << "l2" << endl;
+                auto isect = intersect(r);
+                cout << "l3" << endl;
+                if (isect.isnull) {
+                    for (const auto &light : lights)
+                        pixels[index].Ld += light->Le(r) * beta;
+                    break;
+                }
+                cout << "l4" << endl;
+                const BSDF &bsdf = *isect.bsdf;
+                auto wo = -r.dir;
+                pixels[index].Ld += beta * UniformSampleOneLight(isect);
 
-                            cout << "l5" << endl;
-                            auto isDiffuse = true;
+                cout << "l5" << endl;
+                auto isDiffuse = true;
 
-                            cout << "l6" << endl;
-                            if (isDiffuse) {
-                                pixels[index].vp.p = isect.hit;
-                                pixels[index].vp.wo = wo;
-                                pixels[index].vp.bsdf = &bsdf;
-                                pixels[index].vp.beta = beta;
-                                cout << "l7" << endl;
-                                break;
-                            }
-                            ////////////////////
+                cout << "l6" << endl;
+                if (isDiffuse) {
+                    pixels[index].vp.p = isect.hit;
+                    pixels[index].vp.wo = wo;
+                    pixels[index].vp.bsdf = &bsdf;
+                    pixels[index].vp.beta = beta;
+                    cout << "l7" << endl;
+                    break;
+                }
+                ////////////////////
 
-                        }
+            }
 
-                    }
-            });
         }
-        rep(i, nThread) t[i].join();
 
 
         int hashSize = n;
@@ -143,82 +133,64 @@ void scene::SPPM() {
         rep(i, n) maxRadius = max(maxRadius, pixels[i].radius);
         //rep(i, 3) gridRes[i] = cvCeil((kdRoot->BB.max[i] - kdRoot->BB.min[i]) / maxRadius);
 
-        rep(i, nThread) {
-            t[i] = thread([&, i]() {
-                rep(j, batch)if (i * batch + j < n) {
-                        int index = i * batch + j;
-                        SPPMPixel &pixel = pixels[index];
-                        auto radius = pixel.radius;
-                        Vec3i pMin, pMax;
-                        // because of hash, no overflow
-                        rep(k, 3) {
-                            pMin[k] = cvFloor((pixel.vp.p[k] - radius) / maxRadius);
-                            pMax[k] = cvFloor((pixel.vp.p[k] + radius) / maxRadius);
-                        }
-                        replr(x, pMin[0], pMax[0])
-                            replr(y, pMin[1], pMax[1])
-                                replr(z, pMin[2], pMax[2]) {
-                                    int h = hashP(Vec3i(x, y, z), hashSize);
-                                    auto *node = new SPPMPixelListNode;
-                                    node->pixel = &pixel;
-                                    while (!grid[h].compare_exchange_weak(
-                                            node->next, node));
-                                }
-
+        rep(index, n) {
+            SPPMPixel &pixel = pixels[index];
+            auto radius = pixel.radius;
+            Vec3i pMin, pMax;
+            // because of hash, no overflow
+            rep(k, 3) {
+                pMin[k] = cvFloor((pixel.vp.p[k] - radius) / maxRadius);
+                pMax[k] = cvFloor((pixel.vp.p[k] + radius) / maxRadius);
+            }
+            replr(x, pMin[0], pMax[0])replr(y, pMin[1], pMax[1])replr(z, pMin[2], pMax[2]) {
+                        int h = hashP(Vec3i(x, y, z), hashSize);
+                        auto *node = new SPPMPixelListNode;
+                        node->pixel = &pixel;
+                        while (!grid[h].compare_exchange_weak(
+                                node->next, node));
                     }
-            });
-        }
-        rep(i, nThread) t[i].join();
 
-        auto batchP = (photonsPerIter + nThread - 1) / nThread;
+        }
+
 
         cout << endl << "emitting photon" << endl;
-        rep(i, nThread) {
-            t[i] = thread([&, i]() {
-                rep(j, batchP)if (i * batchP + j < photonsPerIter) {
+        rep(index, photonsPerIter) {
+            auto nL = lights.size(), k = rand() % nL;
+            ray r;
+            Vec3d normal;
+            double pdfDir, pdfPos;
+            auto Le = lights[k]->sampleLe(r, normal, pdfDir, pdfPos);
+            auto beta = Le * abs(normal.dot(r.dir)) * nL / (pdfPos * pdfDir);
 
-                        if (j % 50 == 0) cout << j << " ";
-                        auto nL = lights.size(), k = rand() % nL;
-                        ray r;
-                        Vec3d normal;
-                        double pdfDir, pdfPos;
-                        auto Le = lights[k]->sampleLe(r, normal, pdfDir, pdfPos);
-                        auto beta = Le * abs(normal.dot(r.dir)) * nL / (pdfPos * pdfDir);
-
-                        for (int depth = 0; depth < maxDep; depth++) {
-                            auto isect = intersect(r);
-                            if (isect.isnull) break;
-                            if (depth > 0) {
-                                Vec3i posG;
-                                rep(d, 3) posG[d] = cvFloor(isect.hit[d] / maxRadius);
-                                auto h = hashP(posG, hashSize);
-                                for (SPPMPixelListNode *node = grid[h].load(std::memory_order_relaxed);
-                                     node != nullptr; node = node->next) {
-                                    SPPMPixel &pixel = *node->pixel;
-                                    auto radius = pixel.radius;
-                                    if (norm(pixel.vp.p - isect.hit) > radius) continue;
-                                    Vec3d wi = -r.dir;
-                                    auto phi = beta * pixel.vp.bsdf->f(pixel.vp.wo, wi);
-                                    pixel.phi += phi;
-                                    ++pixel.M;
-                                }
-                            }
-                            Vec3d wi, wo = -r.dir;
-                            double pdf;
-                            auto fr = isect.bsdf->sampleF(wo, wi, pdf, isect.nShading);
-                            auto bnew = beta * fr * abs(wi.dot(isect.nShading)) / pdf;
-                            double q = max(0., 1 - bnew.y() / beta.y());
-                            if (randomReal() < q) break;
-                            beta = bnew / (1 - q);
-                            r = ray(isect.hit, wi);
-
-
-                        }
-
+            for (int depth = 0; depth < maxDep; depth++) {
+                auto isect = intersect(r);
+                if (isect.isnull) break;
+                if (depth > 0) {
+                    Vec3i posG;
+                    rep(d, 3) posG[d] = cvFloor(isect.hit[d] / maxRadius);
+                    auto h = hashP(posG, hashSize);
+                    for (SPPMPixelListNode *node = grid[h].load(std::memory_order_relaxed);
+                         node != nullptr; node = node->next) {
+                        SPPMPixel &pixel = *node->pixel;
+                        auto radius = pixel.radius;
+                        if (norm(pixel.vp.p - isect.hit) > radius) continue;
+                        Vec3d wi = -r.dir;
+                        auto phi = beta * pixel.vp.bsdf->f(pixel.vp.wo, wi);
+                        pixel.phi += phi;
+                        ++pixel.M;
                     }
-            });
+                }
+                Vec3d wi, wo = -r.dir;
+                double pdf;
+                auto fr = isect.bsdf->sampleF(wo, wi, pdf, isect.nShading);
+                auto bnew = beta * fr * abs(wi.dot(isect.nShading)) / pdf;
+                double q = max(0., 1 - bnew.y() / beta.y());
+                if (randomReal() < q) break;
+                beta = bnew / (1 - q);
+                r = ray(isect.hit, wi);
+            }
         }
-        rep(i, nThread) t[i].join();
+
         rep(i, hashSize) free(grid[i]);
         rep(i, n) {
             SPPMPixel &p = pixels[i];
@@ -269,7 +241,8 @@ void scene::render() {
     auto batch = (n + nThread - 1) / nThread;
     rep(i, nThread) {
         t[i] = thread([&, i]() {
-            rep(j, batch)if (i * batch + j < n) {
+            rep(j, batch)
+                if (i * batch + j < n) {
                     if (j % 100 == 0) cout << j << endl;
                     cam->specs[i * batch + j] = integL(rays[i * batch + j]);
                 }
@@ -317,7 +290,8 @@ void scene::addBezier() {
     rep(i, (points.size() - 1) / 3 + 1) {
         vector<Vec3d> tmp{points[i * 3], points[i * 3 + 1], points[i * 3 + 2], points[i * 3 + 3]};
         int divTheta = 10, divT = 2;
-        rep(iTheta, divTheta) rep(iT, divT) rep(k, 2)objs.emplace_back(
+        rep(iTheta, divTheta) rep(iT, divT) rep(k, 2)
+                    objs.emplace_back(
                             new primitive(subRevoBezier(tmp, iTheta, divTheta, iT, divT, k)));
     }
 }
@@ -340,7 +314,7 @@ void scene::init() {
 
     objs.emplace_back(new primitive(new revoBezier(v)));*/
 
-    int sz = 5, ht =  5;
+    int sz = 5, ht = 5;
 
     objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -ht, -sz),
                                                  Vec3d(-sz, -ht, sz),
@@ -506,8 +480,7 @@ void build(kdNode *&cur, bb BB, vector<primitive *> prims, int &kdCnt) {
 void scene::buildKdTree() {
     Mat all(3, objs.size() * 2, CV_64FC1);
     double minx[3], maxx[3];
-    rep(i, objs.size())
-        rep(j, 3) {
+    rep(i, objs.size())rep(j, 3) {
             all.at<double>(j, i * 2) = objs[i]->Shape->minmax()(j, 0);
             all.at<double>(j, i * 2 + 1) = objs[i]->Shape->minmax()(j, 1);
         }

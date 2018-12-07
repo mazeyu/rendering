@@ -29,7 +29,7 @@ void pinhole::genRay() {
 
 }
 
-void camera::synthesize(string filename = "pic.jpg") {
+void camera::synthesize(string filename = "pic") {
     auto n = nRays;
     rep(i, h) rep(j, w) {
         s[i * w + j] = spectrum(0);
