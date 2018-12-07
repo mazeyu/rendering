@@ -36,7 +36,7 @@ struct SPPMPixel {
 
     SPPMPixel() : M(0) {}
 
-    atomic<int> M;
+    int M;
     spectrum tau, Ld, phi;
     double N = 0, radius = 0;
 };
@@ -126,7 +126,7 @@ void scene::SPPM() {
 
 
         int hashSize = n;
-        vector<atomic<SPPMPixelListNode *> > grid(hashSize);
+        vector<SPPMPixelListNode *> grid(hashSize);
 
         //int gridRes[3];
         double maxRadius = 0;
@@ -146,8 +146,8 @@ void scene::SPPM() {
                         int h = hashP(Vec3i(x, y, z), hashSize);
                         auto *node = new SPPMPixelListNode;
                         node->pixel = &pixel;
-                        while (!grid[h].compare_exchange_weak(
-                                node->next, node));
+                        node->next = grid[h];
+                        grid[h] = node;
                     }
 
         }
@@ -169,7 +169,7 @@ void scene::SPPM() {
                     Vec3i posG;
                     rep(d, 3) posG[d] = cvFloor(isect.hit[d] / maxRadius);
                     auto h = hashP(posG, hashSize);
-                    for (SPPMPixelListNode *node = grid[h].load(std::memory_order_relaxed);
+                    for (SPPMPixelListNode *node = grid[h];
                          node != nullptr; node = node->next) {
                         SPPMPixel &pixel = *node->pixel;
                         auto radius = pixel.radius;
