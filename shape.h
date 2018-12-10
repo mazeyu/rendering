@@ -57,10 +57,10 @@ public:
         nGeometry = nGeometry / norm(nGeometry);
 
     }
-    triangle(Vec3d u, Vec3d v, Vec3d w) {
-        points[0] = u;
-        points[1] = v;
-        points[2] = w;
+    triangle(Vec3d u, Vec3d v, Vec3d w, Vec3d offset = Vec3d(0, 0, 0)) {
+        points[0] = u + offset;
+        points[1] = v + offset;
+        points[2] = w + offset;
 
         smoothed = false;
         nGeometry = (points[1] - points[0]).cross(points[2] - points[0]);

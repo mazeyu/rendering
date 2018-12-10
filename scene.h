@@ -35,12 +35,13 @@ class scene {
     intersection intersect(ray r);
     vector<primitive*> kdIntersect(kdNode *cur, ray r);
     spectrum UniformSampleOneLight(intersection &isect);
+    void createCube(Vec3d pos, double size);
 
 public:
     void init();
     void render();
     void SPPM();
-    void addFromFile();
+    void addFromFile(string fileName, double scale = 1);
     void addBezier();
     void buildKdTree();
 

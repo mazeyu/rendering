@@ -4,7 +4,7 @@
 
 #include "shape.h"
 
-BSDF lambert;
+
 
 intersection nullIsect() {
     intersection isect;
@@ -37,7 +37,7 @@ intersection triangle::intersect(ray r) const {
     ret.nShading /= norm(ret.nShading);
     ret.a = a;
     ret.wo = -r.dir / norm(r.dir);
-    ret.bsdf = &lambert;
+
     ret.isnull = false;
     return ret;
 }
@@ -142,7 +142,7 @@ intersection revoBezier::intersect(ray r) const {
             ret.nGeometry /= norm(ret.nGeometry);
             ret.nShading = ret.nGeometry;
             ret.wo = -r.dir / norm(r.dir);
-            ret.bsdf = &lambert;
+
             ret.isnull = false;
             return ret;
         }

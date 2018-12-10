@@ -9,18 +9,26 @@
 
 class BSDF {
 public:
+    virtual spectrum f(Vec3d wo, Vec3d wi) const = 0;
+
+    virtual spectrum sampleF(Vec3d wo, Vec3d &wi, double &pdf, Vec3d n) const = 0;
+};
+
+class lambertianBSDF: public BSDF {
+public:
+    double R;
+    lambertianBSDF(): R(0.3) {}
     spectrum f(Vec3d wo, Vec3d wi) const {
-        return spectrum(1);
+        return spectrum(R / acos(-1));
     }
 
-    spectrum sampleF(Vec3d wo, Vec3d &wi, double &pdf, Vec3d n) {
+    spectrum sampleF(Vec3d wo, Vec3d &wi, double &pdf, Vec3d n) const {
         wi = sphereSampler();
-        pdf = 1.0 / 4 / acos(-1);
         if (wi.dot(n) < 0) wi = -wi;
-        return spectrum(0.05);
+        pdf = wi.dot(n) / acos(-1);
+        return spectrum(R / acos(-1));
     }
 };
-extern BSDF lambert;
 
 
 #endif //RENDERING_BSDF_H

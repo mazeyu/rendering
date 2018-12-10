@@ -22,6 +22,17 @@ Vec3d sphereSampler() {
 
 }
 
+Vec2d diskSampler() {
+    double x, y;
+    for (;;) {
+        x = randomReal() * 2 - 1;
+        y = randomReal() * 2 - 1;
+        if (x * x + y * y < 1) {
+            return Vec2d(x, y) / norm(Vec2d(x, y));
+        }
+    }
+}
+
 struct SPPMPixel {
     struct VisiblePoint {
         VisiblePoint() {}
@@ -66,7 +77,7 @@ spectrum scene::UniformSampleOneLight(intersection &isect) {
     double pdf;
     auto Li = lights[k]->sampleLi(isect, wi, pdf);
     auto isect1 = intersect(ray(isect.hit, wi));
-    if (!isect1.isnull && isect1.a > 1) return spectrum();
+    if (!isect1.isnull && isect1.a > 1 + eps) return spectrum();
     wi /= norm(wi);
     auto L = Li * isect.bsdf->f(isect.wo, wi) * abs(wi.dot(isect.nShading)) / pdf * n;
     return L;
@@ -75,8 +86,8 @@ spectrum scene::UniformSampleOneLight(intersection &isect) {
 
 void scene::SPPM() {
     cout << "SPPMing" << endl;
-    freopen("log.txt", "w", stdout);
-    int iteration = 50, photonsPerIter = 10000, maxDep = 10;
+    //freopen("log.txt", "w", stdout);
+    int iteration = 1000, photonsPerIter = 10000, maxDep = 10;
 
     cam->genRay();
 
@@ -86,43 +97,45 @@ void scene::SPPM() {
 
     rep(i, n) pixels[i].radius = 0.1;//(kdRoot->BB.max[0] - kdRoot->BB.min[0]) / 20;
 
-    int nThread = 1;
+    int nThread = 100;
     thread t[nThread];
     auto batch = (n + nThread - 1) / nThread;
     rep(iter, iteration) {
+        cout << "Iter: " << iter << endl;
         spectrum beta(1);
         rep(i, nThread) {
             t[i] = thread([&, i]() {
                 rep(j, batch)
                     if (i * batch + j < n) {
-                        if (j % 100 == 0) cout << j << endl;
+                        //if (j % 100 == 0) cout << j << endl;
                         int index = i * batch + j;
                         auto r = rays[index];
-                        cout << "l1" << endl;
+                        //cout << "l1" << endl;
+
                         for (int depth = 0; depth < maxDep; depth++) {
-                            cout << "l2" << endl;
+                            //cout << "l2" << endl;
                             auto isect = intersect(r);
-                            cout << "l3" << endl;
+                            //cout << "l3" << endl;
                             if (isect.isnull) {
                                 for (const auto &light : lights)
                                     pixels[index].Ld += light->Le(r) * beta;
                                 break;
                             }
-                            cout << "l4" << endl;
+                            //cout << "l4" << endl;
                             const BSDF &bsdf = *isect.bsdf;
                             auto wo = -r.dir;
                             pixels[index].Ld += beta * UniformSampleOneLight(isect);
 
-                            cout << "l5" << endl;
+                            //cout << "l5" << endl;
                             auto isDiffuse = true;
 
-                            cout << "l6" << endl;
+                            //cout << "l6" << endl;
                             if (isDiffuse) {
                                 pixels[index].vp.p = isect.hit;
                                 pixels[index].vp.wo = wo;
                                 pixels[index].vp.bsdf = &bsdf;
                                 pixels[index].vp.beta = beta;
-                                cout << "l7" << endl;
+                                //cout << "l7" << endl;
                                 break;
                             }
                             ////////////////////
@@ -177,7 +190,7 @@ void scene::SPPM() {
             t[i] = thread([&, i]() {
                 rep(j, batchP)if (i * batchP + j < photonsPerIter) {
 
-                        if (j % 50 == 0) cout << j << " ";
+                        //if (j % 50 == 0) cout << j << " ";
                         auto nL = lights.size(), k = rand() % nL;
                         ray r;
                         Vec3d normal;
@@ -188,6 +201,7 @@ void scene::SPPM() {
                         for (int depth = 0; depth < maxDep; depth++) {
                             auto isect = intersect(r);
                             if (isect.isnull) break;
+                            //cout << isect.hit[1] << endl;
                             if (depth > 0) {
                                 Vec3i posG;
                                 rep(d, 3) posG[d] = cvFloor(isect.hit[d] / maxRadius);
@@ -239,7 +253,7 @@ void scene::SPPM() {
         }
 
 
-        int writeFreq = 1;
+        int writeFreq = 10;
         int64 Np = (iter + 1) * photonsPerIter;
         if (iter % writeFreq == 0) {
             rep(i, n) {
@@ -312,7 +326,7 @@ void scene::addBezier() {
         double x, y, z;
         ss >> x >> y >> z;
         z = -z;
-        points.emplace_back(Vec3d(x, y, z));
+        points.emplace_back(Vec3d(x / 10, y / 10, z / 10));
     }
     rep(i, (points.size() - 1) / 3 + 1) {
         vector<Vec3d> tmp{points[i * 3], points[i * 3 + 1], points[i * 3 + 2], points[i * 3 + 3]};
@@ -322,84 +336,96 @@ void scene::addBezier() {
     }
 }
 
+
+void scene::createCube(Vec3d pos, double size) {
+
+    double ht = size, sz = size;
+    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -ht, -sz),
+                                                 Vec3d(-sz, -ht, sz),
+                                                 Vec3d(sz, -ht, -sz), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(sz, -ht, sz),
+                                                 Vec3d(sz, -ht, -sz),
+                                                 Vec3d(-sz, -ht, sz), pos)));
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, ht, -sz),
+                                                 Vec3d(-sz, ht, sz),
+                                                 Vec3d(sz, ht, -sz), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(sz, ht, sz),
+                                                 Vec3d(sz, ht, -sz),
+                                                 Vec3d(-sz, ht, sz), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -sz, -ht),
+                                                 Vec3d(-sz, sz, -ht),
+                                                 Vec3d(sz, -sz, -ht), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(sz, sz, -ht),
+                                                 Vec3d(sz, -sz, -ht),
+                                                 Vec3d(-sz, sz, -ht), pos)));
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -sz, ht),
+                                                 Vec3d(-sz, sz, ht),
+                                                 Vec3d(sz, -sz, ht), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(sz, sz, ht),
+                                                 Vec3d(sz, -sz, ht),
+                                                 Vec3d(-sz, sz, ht), pos)));
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(-ht, -sz, -sz),
+                                                 Vec3d(-ht, -sz, sz),
+                                                 Vec3d(-ht, sz, -sz), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(-ht, sz, sz),
+                                                 Vec3d(-ht, sz, -sz),
+                                                 Vec3d(-ht, -sz, sz), pos)));
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(ht, -sz, -sz),
+                                                 Vec3d(ht, -sz, sz),
+                                                 Vec3d(ht, sz, -sz), pos)));
+
+
+    objs.emplace_back(new primitive(new triangle(Vec3d(ht, sz, sz),
+                                                 Vec3d(ht, sz, -sz),
+                                                 Vec3d(ht, -sz, sz), pos)));
+}
+
+
 void scene::init() {
     kdRoot = nullptr;
-    double o[] = {3, 2, 1};
+    double o[] = {3, 0, 0};
     double at[] = {0, 0, 0};
     double up[] = {0, 1, 0};
     cam = new pinhole(Vec3d(o), Vec3d(at), Vec3d(up));
 
-    //lights.emplace_back(new pointLight(Vec3d(20, 0, 0)));
-    lights.emplace_back(new pointLight(Vec3d(3, 2, 1), 5));
+    //lights.emplace_back(new pointLight(Vec3d(0, 10, 0), 100));
+    lights.emplace_back(new areaLight(Vec3d(0, 5, 0), Vec3d(2, 0, 0), Vec3d(0, 0, 2), 2, 100));
 
     //addBezier();
-    addFromFile();
+    //addFromFile("model/pig.obj");
     /*vector<Vec3d> v{Vec3d(0, 0, 0), Vec3d(1, 0, 0), Vec3d(1, 0, 1),
                     Vec3d(0, 0, 1)};
 
 
     objs.emplace_back(new primitive(new revoBezier(v)));*/
-
-    int sz = 5, ht =  5;
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -ht, -sz),
-                                                 Vec3d(-sz, -ht, sz),
-                                                 Vec3d(sz, -ht, -sz))));
+    //createCube(Vec3d(0, 0, 0), 5);
+    createCube(Vec3d(0, -10.5, 0), 10);
+    createCube(Vec3d(0, 0, 0), 0.5);
 
 
-    objs.emplace_back(new primitive(new triangle(Vec3d(sz, -ht, sz),
-                                                 Vec3d(sz, -ht, -sz),
-                                                 Vec3d(-sz, -ht, sz))));
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, ht, -sz),
-                                                 Vec3d(-sz, ht, sz),
-                                                 Vec3d(sz, ht, -sz))));
 
 
-    objs.emplace_back(new primitive(new triangle(Vec3d(sz, ht, sz),
-                                                 Vec3d(sz, ht, -sz),
-                                                 Vec3d(-sz, ht, sz))));
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(-ht, -sz, -sz),
-                                                 Vec3d(-ht, -sz, sz),
-                                                 Vec3d(-ht, sz, -sz))));
-
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(-ht, sz, sz),
-                                                 Vec3d(-ht, sz, -sz),
-                                                 Vec3d(-ht, -sz, sz))));
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(ht, -sz, -sz),
-                                                 Vec3d(ht, -sz, sz),
-                                                 Vec3d(ht, sz, -sz))));
-
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(ht, sz, sz),
-                                                 Vec3d(ht, sz, -sz),
-                                                 Vec3d(ht, -sz, sz))));
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -sz, -ht),
-                                                 Vec3d(-sz, sz, -ht),
-                                                 Vec3d(sz, -sz, -ht))));
-
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(sz, sz, -ht),
-                                                 Vec3d(sz, -sz, -ht),
-                                                 Vec3d(-sz, sz, -ht))));
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(-sz, -sz, ht),
-                                                 Vec3d(-sz, sz, ht),
-                                                 Vec3d(sz, -sz, ht))));
-
-
-    objs.emplace_back(new primitive(new triangle(Vec3d(sz, sz, ht),
-                                                 Vec3d(sz, -sz, ht),
-                                                 Vec3d(-sz, sz, ht))));
 
 }
 
-void scene::addFromFile() {
-    ifstream in("model/pigD.obj");
+void scene::addFromFile(string fileName, double scale) {
+    ifstream in(fileName);
     string s;
     vector<Vec3d> points, nPoints;
 
@@ -407,7 +433,7 @@ void scene::addFromFile() {
         if (s.substr(0, 2) == "v ") {
             double x[3];
             sscanf(s.c_str(), "v %lf%lf%lf", &x[0], &x[1], &x[2]);
-            points.emplace_back(Vec3d(x));
+            points.emplace_back(Vec3d(x) * scale);
         }
         if (s.substr(0, 3) == "vn ") {
             double x[3];
@@ -467,7 +493,7 @@ intersection scene::intersect(ray r) {
     else toInter = kdIntersect(kdRoot, r);
     priority_queue<pair<double, intersection> > candidate;
     rep(i, toInter.size()) {
-        auto ret = toInter[i]->Shape->intersect(r);
+        auto ret = toInter[i]->intersect(r);
         if (!ret.isnull)
             candidate.push(mp(ret.a, ret));
     }

@@ -26,6 +26,6 @@ struct ray {
 
 double randomReal();
 Vec3d sphereSampler();
-
+Vec2d diskSampler();
 
 #endif //RENDERING_CORE_H

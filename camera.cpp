@@ -35,7 +35,7 @@ void camera::synthesize(string filename = "pic.jpg") {
         s[i * w + j] = spectrum(0);
         weight[i * w + j] = 0;
     }
-    cout << specs[h / 5 * w + w / 2].c[0] << endl;
+    //cout << specs[h / 5 * w + w / 2].c[0] << endl;
     double filterR = 0.5;
     rep(i, n) {
         auto x0 = sampleX[i] * h, y0 = sampleY[i] * w;
@@ -52,6 +52,6 @@ void camera::synthesize(string filename = "pic.jpg") {
     rep(i, h) rep(j, w) s[i * w + j] /= weight[i * w + j];
 
 
-    rep(i, h) rep(j, w) pic.at<double>(i, j) = s[i * w + j].c[0] * 256;
-    imwrite(filename + ".jpg", pic);
+    rep(i, h) rep(j, w) pic.at<Vec3b>(i, j) = s[i * w + j].toRGB();
+    imwrite("pic/" + filename + ".jpg", pic);
 }

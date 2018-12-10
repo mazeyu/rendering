@@ -47,5 +47,45 @@ public:
 
 };
 
+class areaLight: public lightSource {
+
+public:
+
+    Vec3d o, xAxis, yAxis, n0;
+    double R;
+    spectrum I;
+
+    areaLight(Vec3d o, Vec3d xAxis, Vec3d yAxis, double R, double I): o(o), xAxis(xAxis), yAxis(yAxis), R(R), I(I) {
+        n0 = xAxis.cross(yAxis);
+        n0 /= norm(n0);
+    };
+
+    spectrum Le(ray r) const {
+        return spectrum();
+    }
+
+    spectrum sampleLe(ray &r, Vec3d &n, double &pdfDir, double &pdfPos) const {
+        auto dir = sphereSampler();
+        auto xy = diskSampler();
+        r = ray(o + xAxis * xy[0] + yAxis * xy[1], dir);
+        n = n0;
+        if (dir .dot(n) < 0) dir *= -1;
+        pdfDir = dir.dot(n) / acos(-1);
+        pdfPos = 1 / (acos(-1) * R * R);
+        return I;
+    }
+
+    spectrum sampleLi(intersection &isect, Vec3d &wi, double &pdf) const {
+        auto xy = diskSampler();
+        auto st = o + xAxis * xy[0] + yAxis * xy[1];
+        wi = st - isect.hit;
+        double normwi = norm(wi);
+        pdf = 1 / (cos(-1) * R * R) * normwi * normwi * normwi / abs((isect.nShading.dot(wi))) ;
+        if (wi.dot(n0) > 0) return spectrum(0);
+        return I;
+    }
+
+};
+
 
 #endif //RENDERING_LIGHTSOURCE_H

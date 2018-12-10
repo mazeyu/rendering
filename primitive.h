@@ -7,13 +7,22 @@
 
 #include "shape.h"
 
+
+
 class primitive {
 
 public:
     shape *Shape;
+    BSDF *bsdf;
 
-public:
-    primitive(shape *Shape): Shape(Shape) {}
+    primitive(shape *Shape): Shape(Shape) {
+        bsdf = new lambertianBSDF;
+    }
+    intersection intersect(ray r) {
+        auto ret = Shape->intersect(r);
+        ret.bsdf = bsdf;
+        return ret;
+    }
 
 };
 

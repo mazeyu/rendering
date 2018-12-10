@@ -6,7 +6,7 @@
 #define RENDERING_SPECTRUM_H
 
 #include "core.h"
-#define nSpec 1
+#define nSpec 3
 
 class spectrum {
 public:
@@ -44,6 +44,9 @@ public:
     }
     double y() {
         return c[0];
+    }
+    Vec3b toRGB() {
+        return Vec3b(min(255.0, c[0] * 256), min(255.0, c[1] * 256), min(255.0, c[2] * 256));
     }
 };
 

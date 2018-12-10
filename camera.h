@@ -21,8 +21,8 @@ public:
     int nRays;
     spectrum *specs;
     camera() {
-        w = 192;
-        h = 108;
+        w = 1920;
+        h = 1080;
         sampleX = new double[h * w];
         sampleY = new double[h * w];
         rays = new ray[h * w];
@@ -30,7 +30,7 @@ public:
         specs = new spectrum[h * w];
         s = new spectrum[h * w];
         weight = new double[h * w];
-        pic = Mat(h, w, CV_64FC1);
+        pic = Mat(h, w, CV_8UC3);
     }
     virtual void genRay() = 0;
 
